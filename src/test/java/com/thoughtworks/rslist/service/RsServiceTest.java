@@ -1,7 +1,9 @@
 package com.thoughtworks.rslist.service;
 
+import com.thoughtworks.rslist.domain.User;
 import com.thoughtworks.rslist.domain.Vote;
 import com.thoughtworks.rslist.dto.RsEventDto;
+import com.thoughtworks.rslist.dto.TradeDto;
 import com.thoughtworks.rslist.dto.UserDto;
 import com.thoughtworks.rslist.dto.VoteDto;
 import com.thoughtworks.rslist.repository.RsEventRepository;
@@ -37,7 +39,7 @@ class RsServiceTest {
     initMocks(this);
     rsService = new RsService(rsEventRepository, userRepository, voteRepository,tradeRepository);
     localDateTime = LocalDateTime.now();
-    vote = Vote.builder().voteNum(2).rsEventId(1).time(localDateTime).userId(1).build();
+    vote = Vote.builder().voteNum(2).rsEventId(1).time(localDateTime).userId(2).build();
   }
 
   @Test
@@ -83,8 +85,27 @@ class RsServiceTest {
   @Test
   void shouldThrowExceptionWhenUserNotExist() {
     // given
-    when(rsEventRepository.findById(anyInt())).thenReturn(Optional.empty());
-    when(userRepository.findById(anyInt())).thenReturn(Optional.empty());
+    UserDto userDto =
+            UserDto.builder()
+                    .voteNum(5)
+                    .phone("18888888888")
+                    .gender("female")
+                    .email("a@b.com")
+                    .age(19)
+                    .userName("xiaoli")
+                    .id(2)
+                    .build();
+    RsEventDto rsEventDto =
+            RsEventDto.builder()
+                    .eventName("event name")
+                    .id(1)
+                    .keyword("keyword")
+                    .voteNum(2)
+                    .user(userDto)
+                    .build();
+
+
+    when(rsEventRepository.findById(anyInt())).thenReturn(Optional.of(rsEventDto));
     //when&then
     assertThrows(
         RuntimeException.class,
