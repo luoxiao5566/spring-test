@@ -1,19 +1,26 @@
 package com.thoughtworks.rslist.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thoughtworks.rslist.domain.RsEvent;
 import com.thoughtworks.rslist.domain.Trade;
 import com.thoughtworks.rslist.domain.Vote;
 import com.thoughtworks.rslist.dto.RsEventDto;
 import com.thoughtworks.rslist.dto.TradeDto;
 import com.thoughtworks.rslist.dto.UserDto;
 import com.thoughtworks.rslist.dto.VoteDto;
+import com.thoughtworks.rslist.exception.RequestNotValidException;
 import com.thoughtworks.rslist.repository.RsEventRepository;
 import com.thoughtworks.rslist.repository.TradeRepository;
 import com.thoughtworks.rslist.repository.UserRepository;
 import com.thoughtworks.rslist.repository.VoteRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class RsService {
@@ -21,12 +28,21 @@ public class RsService {
   final UserRepository userRepository;
   final VoteRepository voteRepository;
   final TradeRepository tradeRepository;
-
+  public List<Integer> tradeAmountForRank = new ArrayList<>();
   public RsService(RsEventRepository rsEventRepository, UserRepository userRepository, VoteRepository voteRepository,TradeRepository tradeRepository) {
     this.rsEventRepository = rsEventRepository;
     this.userRepository = userRepository;
     this.voteRepository = voteRepository;
     this.tradeRepository = tradeRepository;
+  }
+
+  public void init() {
+    tradeRepository.deleteAll();
+    voteRepository.deleteAll();
+    rsEventRepository.deleteAll();
+    userRepository.deleteAll();
+    tradeAmountForRank.clear();
+    tradeAmountForRank.add(0);
   }
 
   public void vote(Vote vote, int rsEventId) {
@@ -55,17 +71,93 @@ public class RsService {
 
   public void buy(Trade trade, int id) {
     Optional<RsEventDto> rsEventDto = rsEventRepository.findById(id);
-    Optional<TradeDto> tradeDto = tradeRepository.findByRank(trade.getRank());
-    if (!rsEventDto.isPresent() || trade.getAmount() < tradeDto.get().getAmount()){
-      throw new RuntimeException();
+    if(!rsEventDto.isPresent() || trade.getRank()>tradeAmountForRank.size()){
+      throw new RequestNotValidException("invlid trade param");
     }
-    TradeDto tradeDtoNew = TradeDto.builder().amount(trade.getAmount()).rank(trade.getRank()).rsEventId(id).build();
-    if (!tradeDto.isPresent()){
-      tradeRepository.save(tradeDtoNew);
-    }
-    rsEventRepository.deleteById(tradeDto.get().getRsEventId());
-    tradeRepository.deleteById(tradeDto.get().getId());
-    tradeRepository.save(tradeDtoNew);
 
+    if(trade.getAmount()<=tradeAmountForRank.get(trade.getRank()-1)){
+      throw new RequestNotValidException("invlid trade amount");
+    }
+    RsEventDto rsEvent = rsEventDto.get();
+    TradeDto tradeDto = TradeDto.builder().amount(trade.getAmount())
+            .rank(trade.getRank())
+            .rsEvent(rsEvent)
+            .build();
+    tradeRepository.save(tradeDto);
+    tradeAmountForRank.set(trade.getRank()-1,trade.getAmount());
+    if(rsEventRepository.findByTradeRank(trade.getRank()).isPresent()){
+      tradeRepository.deleteAllByRsEventId(rsEventRepository.findByTradeRank(trade.getRank()).get().getId());
+      rsEventRepository.deleteAllByTradeRank(trade.getRank());
+    }
+    rsEvent.setTradeRank(trade.getRank());
+    rsEventRepository.save(rsEvent);
+
+  }
+
+  public List<RsEvent> getEventList(Integer start, Integer end) {
+    List<RsEvent> rsEvents = new ArrayList<>();
+    List<RsEvent> rsEventsByTrade = new ArrayList<>();
+
+    rsEventRepository.findAll(Sort.by(Sort.Direction.DESC,"voteNum")).stream()
+            .forEach(
+                    item -> {
+                      RsEvent rsEvent = RsEvent.builder()
+                              .eventName(item.getEventName())
+                              .keyword(item.getKeyword())
+                              .userId(item.getId())
+                              .voteNum(item.getVoteNum())
+                              .tradeRank(item.getTradeRank())
+                              .build();
+                      if (rsEvent.getTradeRank() != 0){
+                        rsEventsByTrade.add(rsEvent);
+                      }else rsEvents.add(rsEvent);
+                    }
+            );
+    for (RsEvent rsEvent : rsEventsByTrade) {
+      rsEvents.add(rsEvent.getTradeRank()-1,rsEvent);
+    }
+    if (start == null || end == null) {
+      return rsEvents;
+    }
+    return rsEvents.subList(start - 1, end);
+  }
+
+  public RsEvent getEventByIndex(int index) {
+    List<RsEvent> rsEvents =
+            rsEventRepository.findAll(Sort.by(Sort.Direction.DESC,"voteNum")).stream()
+                    .map(
+                            item ->
+                                    RsEvent.builder()
+                                            .eventName(item.getEventName())
+                                            .keyword(item.getKeyword())
+                                            .userId(item.getId())
+                                            .voteNum(item.getVoteNum())
+                                            .build())
+                    .collect(Collectors.toList());
+    if (index < 1 || index > rsEvents.size()) {
+      throw new RequestNotValidException("invalid index");
+    }
+    return rsEvents.get(index - 1);
+  }
+
+  public void postEvent(RsEvent rsEvent) {
+    Optional<UserDto> userDto = userRepository.findById(rsEvent.getUserId());
+    if (!userDto.isPresent()) {
+      throw new RequestNotValidException("invalid userId");
+    }
+    RsEventDto build =
+            RsEventDto.builder()
+                    .keyword(rsEvent.getKeyword())
+                    .eventName(rsEvent.getEventName())
+                    .voteNum(0)
+                    .user(userDto.get())
+                    .build();
+    rsEventRepository.save(build);
+    tradeAmountForRank.add(0);
+  }
+
+  public void deleteEventByIndex(int index) {
+    rsEventRepository.deleteById(index);
+    tradeAmountForRank.remove(tradeAmountForRank.size()-1);
   }
 }

@@ -13,13 +13,7 @@ import com.thoughtworks.rslist.service.RsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.util.List;
@@ -36,56 +30,19 @@ public class RsController {
   @GetMapping("/rs/list")
   public ResponseEntity<List<RsEvent>> getRsEventListBetween(
       @RequestParam(required = false) Integer start, @RequestParam(required = false) Integer end) {
-    List<RsEvent> rsEvents =
-        rsEventRepository.findAll().stream()
-            .map(
-                item ->
-                    RsEvent.builder()
-                        .eventName(item.getEventName())
-                        .keyword(item.getKeyword())
-                        .userId(item.getId())
-                        .voteNum(item.getVoteNum())
-                        .build())
-            .collect(Collectors.toList());
-    if (start == null || end == null) {
-      return ResponseEntity.ok(rsEvents);
-    }
-    return ResponseEntity.ok(rsEvents.subList(start - 1, end));
+    List<RsEvent> rsEvents = rsService.getEventList(start,end);
+    return ResponseEntity.ok(rsEvents);
   }
 
   @GetMapping("/rs/{index}")
   public ResponseEntity<RsEvent> getRsEvent(@PathVariable int index) {
-    List<RsEvent> rsEvents =
-        rsEventRepository.findAll().stream()
-            .map(
-                item ->
-                    RsEvent.builder()
-                        .eventName(item.getEventName())
-                        .keyword(item.getKeyword())
-                        .userId(item.getId())
-                        .voteNum(item.getVoteNum())
-                        .build())
-            .collect(Collectors.toList());
-    if (index < 1 || index > rsEvents.size()) {
-      throw new RequestNotValidException("invalid index");
-    }
-    return ResponseEntity.ok(rsEvents.get(index - 1));
+    RsEvent rsEvent = rsService.getEventByIndex(index);
+    return ResponseEntity.ok(rsEvent);
   }
 
   @PostMapping("/rs/event")
   public ResponseEntity addRsEvent(@RequestBody @Valid RsEvent rsEvent) {
-    Optional<UserDto> userDto = userRepository.findById(rsEvent.getUserId());
-    if (!userDto.isPresent()) {
-      return ResponseEntity.badRequest().build();
-    }
-    RsEventDto build =
-        RsEventDto.builder()
-            .keyword(rsEvent.getKeyword())
-            .eventName(rsEvent.getEventName())
-            .voteNum(0)
-            .user(userDto.get())
-            .build();
-    rsEventRepository.save(build);
+    rsService.postEvent(rsEvent);
     return ResponseEntity.created(null).build();
   }
 
@@ -101,6 +58,11 @@ public class RsController {
     return ResponseEntity.ok().build();
   }
 
+  @DeleteMapping("/rs/{index}")
+  public ResponseEntity deleteRsEvent(@PathVariable int index) {
+    rsService.deleteEventByIndex(index);
+    return ResponseEntity.ok().build();
+  }
 
   @ExceptionHandler(RequestNotValidException.class)
   public ResponseEntity<Error> handleRequestErrorHandler(RequestNotValidException e) {

@@ -5,10 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import javax.persistence.*;
 
 @Entity
 @Builder
@@ -22,5 +19,7 @@ public class TradeDto {
     private int id;
     private int amount;
     private int rank;
-    private int rsEventId;
+    @ManyToOne
+    @JoinColumn(name = "rs_event_id")
+    private RsEventDto rsEvent;
 }

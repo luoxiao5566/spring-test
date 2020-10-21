@@ -13,6 +13,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -122,6 +123,6 @@ class UserControllerTest {
     mockMvc.perform(delete("/user/{id}", save.getId())).andExpect(status().isOk());
 
     assertEquals(userRepository.findAll().size(), 0);
-    assertEquals(rsEventRepository.findAll().size(), 0);
+    assertEquals(rsEventRepository.findAll(Sort.by(Sort.Direction.DESC,"voteNum")).size(), 0);
   }
 }

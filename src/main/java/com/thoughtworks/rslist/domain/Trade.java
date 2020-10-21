@@ -4,16 +4,18 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
 
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Data
 public class Trade {
+    @NotNull
+    @Min(0)
     private int amount;
+    @NotNull
+    @Min(1)
     private int rank;
-    private int rsEventId;
 }
